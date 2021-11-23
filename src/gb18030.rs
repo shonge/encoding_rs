@@ -13,6 +13,7 @@ use crate::handles::*;
 use crate::variant::*;
 // Rust 1.14.0 requires the following despite the asterisk above.
 use super::in_inclusive_range16;
+use super::in_inclusive_range8;
 use super::in_range16;
 
 enum Gb18030Pending {
@@ -128,6 +129,11 @@ impl Gb18030Decoder {
             // Two-byte (or error)
             if first_minus_offset >= 0x20 {
                 // Not the gbk ideograph range above GB2312
+                if gbk_invalid(first_minus_offset, second) {
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                    }
                 let trail_minus_offset = second.wrapping_sub(0xA1);
                 if trail_minus_offset <= (0xFE - 0xA1) {
                     // GB2312
@@ -144,11 +150,24 @@ impl Gb18030Decoder {
                         let bmp = GB2312_SYMBOLS[trail_minus_offset as usize];
                         handle.write_bmp_excl_ascii(bmp)
                     } else if first_minus_offset == 0x25 && ((trail_minus_offset.wrapping_sub(63) as usize) < GB2312_SYMBOLS_AFTER_GREEK.len()) {
+                        if second == 0xF3 || second.wrapping_sub(0xEC) <= (0xED - 0xEC) {
+                            return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                        }
                         handle.write_bmp_excl_ascii(GB2312_SYMBOLS_AFTER_GREEK[trail_minus_offset.wrapping_sub(63) as usize])
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
+                        if second == 0xBC {
+                            return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                        }
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
-                    } else if first_minus_offset > 0x76 {
-                        // Bottom PUA
+                    } else if in_inclusive_range8(first_minus_offset, 0x77, 0x7D) || in_inclusive_range8(first_minus_offset, 0x29, 0x2F) {
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                    } else if first_minus_offset > 0x7C {
                         let pua = (0xE234 + mul_94(first_minus_offset - 0x77) + trail_minus_offset as usize) as u16;
                         handle.write_upper_bmp(pua)
                     } else {
@@ -156,15 +175,15 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(bmp)
                     }
                 } else {
-                    // gbk range on the left
+                    // gbk range on the left.
                     let mut trail_minus_offset = second.wrapping_sub(0x40);
                     if trail_minus_offset > (0x7E - 0x40) {
                         let trail_minus_range_start = second.wrapping_sub(0x80);
                         if trail_minus_range_start > (0xA0 - 0x80) {
                             if second < 0x80 {
-                                return (DecoderResult::Malformed(1, 0),
-                                        unread_handle_second.unread(),
-                                        handle.written());
+                                return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
                             }
                             return (DecoderResult::Malformed(2, 0),
                                     unread_handle_second.consumed(),
@@ -172,7 +191,18 @@ impl Gb18030Decoder {
                         }
                         trail_minus_offset = second - 0x41;
                     }
-                    // Zero-base lead
+                    if first_minus_offset.wrapping_sub(0x20) <= (0x26 - 0x20) && (first_minus_offset != 0x22 || second != 0xA0) {
+                         return (DecoderResult::Malformed(2, 0),
+                                    unread_handle_second.consumed(),
+                                    handle.written());
+                    }
+                    
+                    if gbk_invalid(first_minus_offset, second) {
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                    }
+                    // Zero-base lead.
                     let left_lead = first_minus_offset - 0x20;
                     let left_pointer = left_lead as usize * (190 - 94) +
                                        trail_minus_offset as usize;
@@ -295,6 +325,70 @@ impl Gb18030Decoder {
         'outermost);
 }
 
+fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
+    if first_minus_offset == 0x21
+        && (in_inclusive_range8(second, 0xAB, 0xB0)
+            || second == 0xE4 || second == 0xEF || second == 0xF0
+            || second == 0xFD || second == 0xFE)
+    {
+        // [0xA2]
+        return true;
+    } else if first_minus_offset == 0x23 && in_inclusive_range8(second, 0xF4, 0xFE) {
+        // [0xA4]
+        return true;
+    } else if first_minus_offset == 0x24 && in_inclusive_range8(second, 0xF7, 0xFE) {
+        // [0xA5]
+        return true;
+    } else if first_minus_offset == 0x25
+        && (in_inclusive_range8(second, 0xB9, 0xC0)
+            || in_inclusive_range8(second, 0xD9, 0xDF)
+            || in_inclusive_range8(second, 0xF6, 0xFE))
+    {
+        // [0xA6]
+        return true;
+    } else if first_minus_offset == 0x26
+        && (in_inclusive_range8(second, 0xC2, 0xD0)
+            || in_inclusive_range8(second, 0xF2, 0xFE))
+    {
+        // [0xA7]
+        return true;
+    } else if first_minus_offset == 0x27
+        && (second == 0xBC
+            || in_inclusive_range8(second, 0xC1, 0xC4)
+            || in_inclusive_range8(second, 0x96, 0xA0)
+            || in_inclusive_range8(second, 0xEA, 0xFE)) {
+        // [0xA8]
+        return true;
+    } else if first_minus_offset == 0x28 && 
+        (in_inclusive_range8(second, 0xF0, 0xFE)
+            || in_inclusive_range8(second, 0x5D, 0x5F)
+            || in_inclusive_range8(second, 0x97, 0xA3)
+            || second == 0x58 || second == 0x5B) {
+        // [0xA9]
+        return true;
+    } else if first_minus_offset == 0x56 && in_inclusive_range8(second, 0xFA, 0xFE) {
+        // [0xD7]
+        return true;
+    } else if first_minus_offset == 0x7D && 
+        (in_inclusive_range8(second, 0xA0, 0xFF)
+            || in_inclusive_range8(second, 0x51, 0x53)
+            || in_inclusive_range8(second, 0x66, 0x67)
+            || in_inclusive_range8(second, 0x6C, 0x6D)
+            || in_inclusive_range8(second, 0x90, 0x91)
+            || in_inclusive_range8(second, 0x59, 0x59)
+            || in_inclusive_range8(second, 0x61, 0x61)
+            || in_inclusive_range8(second, 0x76, 0x76)
+            || in_inclusive_range8(second, 0x7E, 0x7E)) {
+        // [0xFE]
+        return true;
+    } else if first_minus_offset == 0x7E && second == 0xFE {
+        // [0xFF]
+        return true;
+    }
+
+    false
+}
+
 // XXX Experiment with inline directives
 fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
     // Try ideographic punctuation first as it's the most likely case.
@@ -305,6 +399,27 @@ fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
             return Some((0xA1, pos + 0xA1));
         }
     }
+
+    // To make it the same with golang.
+    if in_inclusive_range16(bmp, 0x1E3f, 0x1E3F)
+        || in_inclusive_range16(bmp, 0xE000, 0xE5E4)
+        || in_inclusive_range16(bmp, 0xE0e6, 0xE76b)
+        || in_inclusive_range16(bmp, 0xE76d, 0xE7c6)
+        || in_inclusive_range16(bmp, 0xE7c9, 0xE7e6)
+        || in_inclusive_range16(bmp, 0xE7f4, 0xE814)
+        || in_inclusive_range16(bmp, 0xE816, 0xE818)
+        || in_inclusive_range16(bmp, 0xE81e, 0xE81e)
+        || in_inclusive_range16(bmp, 0xE826, 0xE826)
+        || in_inclusive_range16(bmp, 0xE82b, 0xE82c)
+        || in_inclusive_range16(bmp, 0xE831, 0xE832)
+        || in_inclusive_range16(bmp, 0xE83b, 0xE83b)
+        || in_inclusive_range16(bmp, 0xE843, 0xE843)
+        || in_inclusive_range16(bmp, 0xE854, 0xE855)
+        || in_inclusive_range16(bmp, 0xE864, 0xE864)
+    {
+        return None;
+    }
+
     // Ext A
     if in_range16(bmp, 0x3400, 0x4E00) {
         return position(&GBK_BOTTOM[21..100], bmp).map(|pos| {

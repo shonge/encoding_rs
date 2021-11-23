@@ -71,21 +71,21 @@ impl Gb18030Decoder {
         byte_length.checked_add(
             self.pending.count()
                 + match self.first {
-                    None => 0,
-                    Some(_) => 1,
-                }
+                None => 0,
+                Some(_) => 1,
+            }
                 + match self.second {
-                    None => 0,
-                    Some(_) => 1,
-                }
+                None => 0,
+                Some(_) => 1,
+            }
                 + match self.third {
-                    None => 0,
-                    Some(_) => 1,
-                }
+                None => 0,
+                Some(_) => 1,
+            }
                 + match self.pending_ascii {
-                    None => 0,
-                    Some(_) => 1,
-                },
+                None => 0,
+                Some(_) => 1,
+            },
         )
     }
 
@@ -305,6 +305,27 @@ fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
             return Some((0xA1, pos + 0xA1));
         }
     }
+
+    // To make it the same with golang.
+    if in_inclusive_range16(bmp, 0x1E3f, 0x1E3F) ||
+        in_inclusive_range16(bmp, 0xE000, 0xE5E4) ||
+        in_inclusive_range16(bmp, 0xE0e6, 0xE76b) ||
+        in_inclusive_range16(bmp, 0xE76d, 0xE7c6) ||
+        in_inclusive_range16(bmp, 0xE7c9, 0xE7e6) ||
+        in_inclusive_range16(bmp, 0xE7f4, 0xE814) ||
+        in_inclusive_range16(bmp, 0xE816, 0xE818) ||
+        in_inclusive_range16(bmp, 0xE81e, 0xE81e) ||
+        in_inclusive_range16(bmp, 0xE826, 0xE826) ||
+        in_inclusive_range16(bmp, 0xE82b, 0xE82c) ||
+        in_inclusive_range16(bmp, 0xE831, 0xE832) ||
+        in_inclusive_range16(bmp, 0xE83b, 0xE83b) ||
+        in_inclusive_range16(bmp, 0xE843, 0xE843) ||
+        in_inclusive_range16(bmp, 0xE854, 0xE855) ||
+        in_inclusive_range16(bmp, 0xE864, 0xE864)
+    {
+        return None;
+    }
+
     // Ext A
     if in_range16(bmp, 0x3400, 0x4E00) {
         return position(&GBK_BOTTOM[21..100], bmp).map(|pos| {

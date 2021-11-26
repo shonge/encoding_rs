@@ -186,7 +186,7 @@ impl Gb18030Decoder {
 
                     // first 在 [0xA1, 0xA7], second 即使在 [0x40, 0x7E] 也报错。
                     // first 在 [0xA1, 0xA7], second 即使在 [0x80, 0xA0] 也报错。除了 A3A0
-                    if first_minus_offset.wrapping_sub(0x20) <= (0x26 - 0x20) && (first_minus_offset != 0x22 && second != 0xA0) {
+                    if first_minus_offset.wrapping_sub(0x20) <= (0x26 - 0x20) && (first_minus_offset != 0x22 || second != 0xA0) {
                          return (DecoderResult::Malformed(2, 0),
                                     unread_handle_second.consumed(),
                                     handle.written());

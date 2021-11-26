@@ -127,12 +127,15 @@ impl Gb18030Decoder {
         {
             // Two-byte (or error)
             if first_minus_offset >= 0x20 {
+                // first: [0xA1, 0xFF]
                 // Not the gbk ideograph range above GB2312
                 let trail_minus_offset = second.wrapping_sub(0xA1);
                 if trail_minus_offset <= (0xFE - 0xA1) {
                     // GB2312
+                    // second: [0xA1,0xFE]
                     let hanzi_lead = first_minus_offset.wrapping_sub(0x2F);
                     if hanzi_lead < (0x77 - 0x2F) {
+                        // first -> (0xDF, 0xFF]
                         // Level 1 Hanzi, Level 2 Hanzi
                         // or one of the 5 PUA code
                         // points in between.
@@ -140,14 +143,18 @@ impl Gb18030Decoder {
                         let upper_bmp = GB2312_HANZI[hanzi_pointer];
                         handle.write_upper_bmp(upper_bmp)
                     } else if first_minus_offset == 0x20 {
+                        // [0xA1]
                         // Symbols (starting with ideographic space)
                         let bmp = GB2312_SYMBOLS[trail_minus_offset as usize];
                         handle.write_bmp_excl_ascii(bmp)
                     } else if first_minus_offset == 0x25 && ((trail_minus_offset.wrapping_sub(63) as usize) < GB2312_SYMBOLS_AFTER_GREEK.len()) {
+                        // [0xA6]
                         handle.write_bmp_excl_ascii(GB2312_SYMBOLS_AFTER_GREEK[trail_minus_offset.wrapping_sub(63) as usize])
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
+                        // [0xA8]
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
                     } else if first_minus_offset > 0x76 {
+                        // [0xF7, 0xFF]
                         // Bottom PUA
                         let pua = (0xE234 + mul_94(first_minus_offset - 0x77) + trail_minus_offset as usize) as u16;
                         handle.write_upper_bmp(pua)
@@ -156,11 +163,13 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(bmp)
                     }
                 } else {
-                    // gbk range on the left
+                    // gbk range on the left. sencond [0x00,0xA0], [0xFF].
                     let mut trail_minus_offset = second.wrapping_sub(0x40);
                     if trail_minus_offset > (0x7E - 0x40) {
+                        // [0x00,0x40), (0x7E, 0xFF]
                         let trail_minus_range_start = second.wrapping_sub(0x80);
                         if trail_minus_range_start > (0xA0 - 0x80) {
+                            // [0x00,0x3F], [0x7F], [0xFF]
                             if second < 0x80 {
                                 return (DecoderResult::Malformed(1, 0),
                                         unread_handle_second.unread(),
@@ -170,9 +179,20 @@ impl Gb18030Decoder {
                                     unread_handle_second.consumed(),
                                     handle.written());
                         }
+                        // [0x80, 0xA0]
                         trail_minus_offset = second - 0x41;
                     }
-                    // Zero-base lead
+                    // [0x40, 0x7E], [0x80, 0xA0]
+
+                    // first 在 [0xA1, 0xA7], second 即使在 [0x40, 0x7E] 也报错。
+                    // first 在 [0xA1, 0xA7], second 即使在 [0x80, 0xA0] 也报错。除了 A3A0
+                    if first_minus_offset.wrapping_sub(0x20) <= (0x26 - 0x20) && (first_minus_offset != 0x22 && second != 0xA0) {
+                         return (DecoderResult::Malformed(2, 0),
+                                    unread_handle_second.consumed(),
+                                    handle.written());
+                    }
+
+                    // Zero-base lead. [0x40, 0x7E]
                     let left_lead = first_minus_offset - 0x20;
                     let left_pointer = left_lead as usize * (190 - 94) +
                                        trail_minus_offset as usize;
@@ -607,6 +627,11 @@ mod tests {
 
     fn encode_gbk(string: &str, expect: &[u8]) {
         encode(GBK, string, expect);
+    }
+
+    #[test]
+    fn test_my_decode() {
+        decode_gb18030(b"\xe0\xA2", "\u{FFFD}");
     }
 
     #[test]

@@ -149,9 +149,19 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(bmp)
                     } else if first_minus_offset == 0x25 && ((trail_minus_offset.wrapping_sub(63) as usize) < GB2312_SYMBOLS_AFTER_GREEK.len()) {
                         // [0xA6]
+                        if (second == 0xF3 || second.wrapping_sub(0xEC) <= (0xED - 0xEC)) {
+                            return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                        }
                         handle.write_bmp_excl_ascii(GB2312_SYMBOLS_AFTER_GREEK[trail_minus_offset.wrapping_sub(63) as usize])
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
                         // [0xA8]
+                        if (second == 0xBC) {
+                            return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                        }
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
                     } else if gbk_invalid(first_minus_offset, second) {
                         return (DecoderResult::Malformed(2, 0),
@@ -342,9 +352,7 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
     } else if first_minus_offset == 0x25
         && (second.wrapping_sub(0xB9) <= (0xC0 - 0xB9)
             || second.wrapping_sub(0xD9) <= (0xDF - 0xD9)
-            || second.wrapping_sub(0xEC) <= (0xED - 0xEC)
-            || second.wrapping_sub(0xF6) <= (0xFE - 0xF6)
-            || second == 0xF3)
+            || second.wrapping_sub(0xF6) <= (0xFE - 0xF6))
     {
         // [0xA6]
         return true;
@@ -357,12 +365,14 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
     } else if first_minus_offset == 0x27
         && (second == 0xBC
             || second.wrapping_sub(0xC1) <= (0xC4 - 0xC1)
-            || second.wrapping_sub(0xEA) <= (0xFE - 0xEA))
-    {
+            || second.wrapping_sub(0xEA) <= (0xFE - 0xEA)) {
         // [0xA8]
         return true;
     } else if first_minus_offset == 0x28 && (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)) {
         // [0xA9]
+        return true;
+    } else if first_minus_offset == 0x59 && second.wrapping_sub(0xFA) <= (0xFE-0xFA) {
+        // [0xD7]
         return true;
     }
 

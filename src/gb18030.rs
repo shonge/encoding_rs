@@ -153,9 +153,16 @@ impl Gb18030Decoder {
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
                         // [0xA8]
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
+                    } else if first_minus_offset == 0x21 && 
+                        (second.wrapping_sub(0xAB) <= (0xB0 - 0xAB) || 
+                            second == 0xE4 || second == 0xEF || 
+                                second == 0xF0 || second == 0xFD ||
+                                    second == 0xFE) {
+                        return (DecoderResult::Malformed(2, 0),
+                                    unread_handle_second.consumed(),
+                                    handle.written());
                     } else if first_minus_offset.wrapping_sub(0x77) < 6 || first_minus_offset.wrapping_sub(0x29) < 6 {
                         // [0xF8, 0xFD], [0xAA,0xAF]
-                        // Bottom PUA
                         return (DecoderResult::Malformed(2, 0),
                                     unread_handle_second.consumed(),
                                     handle.written());

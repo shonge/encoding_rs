@@ -13,6 +13,7 @@ use crate::handles::*;
 use crate::variant::*;
 // Rust 1.14.0 requires the following despite the asterisk above.
 use super::in_inclusive_range16;
+use super::in_inclusive_range8;
 use super::in_range16;
 
 enum Gb18030Pending {
@@ -209,7 +210,12 @@ impl Gb18030Decoder {
                                     unread_handle_second.consumed(),
                                     handle.written());
                     }
-
+                    
+                    if gbk_invalid(first_minus_offset, second) {
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                    }
                     // Zero-base lead. [0x40, 0x7E]
                     let left_lead = first_minus_offset - 0x20;
                     let left_pointer = left_lead as usize * (190 - 94) +
@@ -370,17 +376,33 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
     } else if first_minus_offset == 0x27
         && (second == 0xBC
             || second.wrapping_sub(0xC1) <= (0xC4 - 0xC1)
+            || second.wrapping_sub(0x96) <= (0xA0 - 0x96)
             || second.wrapping_sub(0xEA) <= (0xFE - 0xEA)) {
         // [0xA8]
         return true;
-    } else if first_minus_offset == 0x28 && (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)) {
+    } else if first_minus_offset == 0x28 && 
+        (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)
+            || second.wrapping_sub(0x5D) <= (0x5F - 0x5D)
+            || second.wrapping_sub(0x97) <= (0xA3 - 0x97)
+            || second == 0x58 || second == 0x5B) {
         // [0xA9]
         return true;
     } else if first_minus_offset == 0x56 && second.wrapping_sub(0xFA) <= (0xFE-0xFA) {
         // [0xD7]
         return true;
-    } else if first_minus_offset == 0x7D {
+    } else if first_minus_offset == 0x7D && 
+        (in_inclusive_range8(second, 0xA0, 0xFF)
+            || in_inclusive_range8(second, 0x51, 0x53)
+            || in_inclusive_range8(second, 0x66, 0x67)
+            || in_inclusive_range8(second, 0x6C, 0x6D)
+            || in_inclusive_range8(second, 0x90, 0x91)
+            || in_inclusive_range8(second, 0x59, 0x59)
+            || in_inclusive_range8(second, 0x61, 0x61)) {
         // [0xFE]
+        return true;
+    } else if first_minus_offset == 0x7E && second == 0xFE {
+        // [0xFF]
+        return true;
     }
 
     false

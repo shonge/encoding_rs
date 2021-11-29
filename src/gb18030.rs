@@ -195,9 +195,9 @@ impl Gb18030Decoder {
                         if trail_minus_range_start > (0xA0 - 0x80) {
                             // [0x00,0x3F], [0x7F], [0xFF]
                             if second < 0x80 {
-                                return (DecoderResult::Malformed(1, 0),
-                                        unread_handle_second.unread(),
-                                        handle.written());
+                                return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
                             }
                             return (DecoderResult::Malformed(2, 0),
                                     unread_handle_second.consumed(),
@@ -398,7 +398,9 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
             || in_inclusive_range8(second, 0x6C, 0x6D)
             || in_inclusive_range8(second, 0x90, 0x91)
             || in_inclusive_range8(second, 0x59, 0x59)
-            || in_inclusive_range8(second, 0x61, 0x61)) {
+            || in_inclusive_range8(second, 0x61, 0x61)
+            || in_inclusive_range8(second, 0x76, 0x76)
+            || in_inclusive_range8(second, 0x7E, 0x7E)) {
         // [0xFE]
         return true;
     } else if first_minus_offset == 0x7E && second == 0xFE {

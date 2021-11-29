@@ -135,10 +135,15 @@ impl Gb18030Decoder {
                     // second: [0xA1,0xFE]
                     let hanzi_lead = first_minus_offset.wrapping_sub(0x2F);
                     if hanzi_lead < (0x77 - 0x2F) {
-                        // first -> (0xDF, 0xFF]
+                        // first -> (0xB0, 0xFF]
                         // Level 1 Hanzi, Level 2 Hanzi
                         // or one of the 5 PUA code
                         // points in between.
+                        if gbk_invalid(first_minus_offset, second) {
+                            return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                        }
                         let hanzi_pointer = mul_94(hanzi_lead) + trail_minus_offset as usize;
                         let upper_bmp = GB2312_HANZI[hanzi_pointer];
                         handle.write_upper_bmp(upper_bmp)
@@ -371,9 +376,11 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
     } else if first_minus_offset == 0x28 && (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)) {
         // [0xA9]
         return true;
-    } else if first_minus_offset == 0x59 && second.wrapping_sub(0xFA) <= (0xFE-0xFA) {
+    } else if first_minus_offset == 0x56 && second.wrapping_sub(0xFA) <= (0xFE-0xFA) {
         // [0xD7]
         return true;
+    } else if first_minus_offset == 0x7D {
+        // [0xFE]
     }
 
     false

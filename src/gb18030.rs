@@ -130,21 +130,21 @@ impl Gb18030Decoder {
             if first_minus_offset >= 0x20 {
                 // first: [0xA1, 0xFF]
                 // Not the gbk ideograph range above GB2312
+                if gbk_invalid(first_minus_offset, second) {
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
+                    }
                 let trail_minus_offset = second.wrapping_sub(0xA1);
                 if trail_minus_offset <= (0xFE - 0xA1) {
                     // GB2312
                     // second: [0xA1,0xFE]
                     let hanzi_lead = first_minus_offset.wrapping_sub(0x2F);
                     if hanzi_lead < (0x77 - 0x2F) {
-                        // first -> (0xB0, 0xFF]
+                        // first -> (0xB0, 0xF8)
                         // Level 1 Hanzi, Level 2 Hanzi
                         // or one of the 5 PUA code
                         // points in between.
-                        if gbk_invalid(first_minus_offset, second) {
-                            return (DecoderResult::Malformed(2, 0),
-                                unread_handle_second.consumed(),
-                                handle.written());
-                        }
                         let hanzi_pointer = mul_94(hanzi_lead) + trail_minus_offset as usize;
                         let upper_bmp = GB2312_HANZI[hanzi_pointer];
                         handle.write_upper_bmp(upper_bmp)
@@ -155,7 +155,7 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(bmp)
                     } else if first_minus_offset == 0x25 && ((trail_minus_offset.wrapping_sub(63) as usize) < GB2312_SYMBOLS_AFTER_GREEK.len()) {
                         // [0xA6]
-                        if (second == 0xF3 || second.wrapping_sub(0xEC) <= (0xED - 0xEC)) {
+                        if second == 0xF3 || second.wrapping_sub(0xEC) <= (0xED - 0xEC) {
                             return (DecoderResult::Malformed(2, 0),
                                 unread_handle_second.consumed(),
                                 handle.written());
@@ -163,7 +163,7 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(GB2312_SYMBOLS_AFTER_GREEK[trail_minus_offset.wrapping_sub(63) as usize])
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
                         // [0xA8]
-                        if (second == 0xBC) {
+                        if second == 0xBC {
                             return (DecoderResult::Malformed(2, 0),
                                 unread_handle_second.consumed(),
                                 handle.written());
@@ -171,10 +171,6 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
                     } else if in_inclusive_range8(first_minus_offset, 0x77, 0x7D) || in_inclusive_range8(first_minus_offset, 0x29, 0x2F) {
                         // [0xF8, 0xFD], [0xAA,0xAF]
-                        return (DecoderResult::Malformed(2, 0),
-                                unread_handle_second.consumed(),
-                                handle.written());
-                    } else if gbk_invalid(first_minus_offset, second) {
                         return (DecoderResult::Malformed(2, 0),
                                 unread_handle_second.consumed(),
                                 handle.written());
@@ -397,8 +393,7 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
             || in_inclusive_range8(second, 0x59, 0x59)
             || in_inclusive_range8(second, 0x61, 0x61)
             || in_inclusive_range8(second, 0x76, 0x76)
-            || in_inclusive_range8(second, 0x7E, 0x7E)
-            || in_inclusive_range8(second, 0xFF, 0xFF)) {
+            || in_inclusive_range8(second, 0x7E, 0x7E)) {
         // [0xFE]
         return true;
     } else if first_minus_offset == 0x7E && second == 0xFE {
@@ -721,11 +716,6 @@ mod tests {
 
     fn encode_gbk(string: &str, expect: &[u8]) {
         encode(GBK, string, expect);
-    }
-
-    #[test]
-    fn test_my_decode() {
-        decode_gb18030(b"\xe0\xA2", "\u{FFFD}");
     }
 
     #[test]

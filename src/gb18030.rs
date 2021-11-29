@@ -359,7 +359,7 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
         // [0xA5]
         return true;
     } else if first_minus_offset == 0x25
-        && (in_inclusive_range8(0xB9, 0xC0)
+        && (in_inclusive_range8(second, 0xB9, 0xC0)
             || in_inclusive_range8(second, 0xD9, 0xDF)
             || in_inclusive_range8(second, 0xF6, 0xFE))
     {

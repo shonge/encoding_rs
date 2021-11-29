@@ -71,21 +71,21 @@ impl Gb18030Decoder {
         byte_length.checked_add(
             self.pending.count()
                 + match self.first {
-                None => 0,
-                Some(_) => 1,
-            }
+                    None => 0,
+                    Some(_) => 1,
+                }
                 + match self.second {
-                None => 0,
-                Some(_) => 1,
-            }
+                    None => 0,
+                    Some(_) => 1,
+                }
                 + match self.third {
-                None => 0,
-                Some(_) => 1,
-            }
+                    None => 0,
+                    Some(_) => 1,
+                }
                 + match self.pending_ascii {
-                None => 0,
-                Some(_) => 1,
-            },
+                    None => 0,
+                    Some(_) => 1,
+                },
         )
     }
 
@@ -153,19 +153,10 @@ impl Gb18030Decoder {
                     } else if first_minus_offset == 0x27 && (trail_minus_offset as usize) < GB2312_PINYIN.len() {
                         // [0xA8]
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
-                    } else if first_minus_offset == 0x21 && 
-                        (second.wrapping_sub(0xAB) <= (0xB0 - 0xAB) || 
-                            second == 0xE4 || second == 0xEF || 
-                                second == 0xF0 || second == 0xFD ||
-                                    second == 0xFE) {
+                    } else if gbk_invalid(first_minus_offset, second) {
                         return (DecoderResult::Malformed(2, 0),
-                                    unread_handle_second.consumed(),
-                                    handle.written());
-                    } else if first_minus_offset.wrapping_sub(0x77) < 6 || first_minus_offset.wrapping_sub(0x29) < 6 {
-                        // [0xF8, 0xFD], [0xAA,0xAF]
-                        return (DecoderResult::Malformed(2, 0),
-                                    unread_handle_second.consumed(),
-                                    handle.written());
+                                unread_handle_second.consumed(),
+                                handle.written());
                     } else if first_minus_offset > 0x7C {
                         // [0xFE, 0xFF]
                         let pua = (0xE234 + mul_94(first_minus_offset - 0x77) + trail_minus_offset as usize) as u16;
@@ -327,6 +318,57 @@ impl Gb18030Decoder {
         'outermost);
 }
 
+fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
+    if first_minus_offset == 0x21
+        && (second.wrapping_sub(0xAB) <= (0xB0 - 0xAB)
+            || second == 0xE4
+            || second == 0xEF
+            || second == 0xF0
+            || second == 0xFD
+            || second == 0xFE)
+    {
+        // [0xA2]
+        return true;
+    } else if first_minus_offset == 0x23 && second.wrapping_sub(0xF4) <= (0xFE - 0xF4) {
+        // [0xA4]
+        return true;
+    } else if first_minus_offset.wrapping_sub(0x77) < 6 || first_minus_offset.wrapping_sub(0x29) < 6
+    {
+        // [0xF8, 0xFD], [0xAA,0xAF]
+        return true;
+    } else if first_minus_offset == 0x24 && second.wrapping_sub(0xF7) <= (0xFE - 0xF7) {
+        // [0xA5]
+        return true;
+    } else if first_minus_offset == 0x25
+        && (second.wrapping_sub(0xB9) <= (0xC0 - 0xB9)
+            || second.wrapping_sub(0xD9) <= (0xDF - 0xD9)
+            || second.wrapping_sub(0xEC) <= (0xED - 0xEC)
+            || second.wrapping_sub(0xF6) <= (0xFE - 0xF6)
+            || second == 0xF3)
+    {
+        // [0xA6]
+        return true;
+    } else if first_minus_offset == 0x26
+        && (second.wrapping_sub(0xC2) <= (0xD0 - 0xC2)
+            || second.wrapping_sub(0xF2) <= (0xFE - 0xF2))
+    {
+        // [0xA7]
+        return true;
+    } else if first_minus_offset == 0x27
+        && (second == 0xBC
+            || second.wrapping_sub(0xC1) <= (0xC4 - 0xC1)
+            || second.wrapping_sub(0xEA) <= (0xFE - 0xEA))
+    {
+        // [0xA8]
+        return true;
+    } else if first_minus_offset == 0x28 && (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)) {
+        // [0xA9]
+        return true;
+    }
+
+    false
+}
+
 // XXX Experiment with inline directives
 fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
     // Try ideographic punctuation first as it's the most likely case.
@@ -339,21 +381,21 @@ fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
     }
 
     // To make it the same with golang.
-    if in_inclusive_range16(bmp, 0x1E3f, 0x1E3F) ||
-        in_inclusive_range16(bmp, 0xE000, 0xE5E4) ||
-        in_inclusive_range16(bmp, 0xE0e6, 0xE76b) ||
-        in_inclusive_range16(bmp, 0xE76d, 0xE7c6) ||
-        in_inclusive_range16(bmp, 0xE7c9, 0xE7e6) ||
-        in_inclusive_range16(bmp, 0xE7f4, 0xE814) ||
-        in_inclusive_range16(bmp, 0xE816, 0xE818) ||
-        in_inclusive_range16(bmp, 0xE81e, 0xE81e) ||
-        in_inclusive_range16(bmp, 0xE826, 0xE826) ||
-        in_inclusive_range16(bmp, 0xE82b, 0xE82c) ||
-        in_inclusive_range16(bmp, 0xE831, 0xE832) ||
-        in_inclusive_range16(bmp, 0xE83b, 0xE83b) ||
-        in_inclusive_range16(bmp, 0xE843, 0xE843) ||
-        in_inclusive_range16(bmp, 0xE854, 0xE855) ||
-        in_inclusive_range16(bmp, 0xE864, 0xE864)
+    if in_inclusive_range16(bmp, 0x1E3f, 0x1E3F)
+        || in_inclusive_range16(bmp, 0xE000, 0xE5E4)
+        || in_inclusive_range16(bmp, 0xE0e6, 0xE76b)
+        || in_inclusive_range16(bmp, 0xE76d, 0xE7c6)
+        || in_inclusive_range16(bmp, 0xE7c9, 0xE7e6)
+        || in_inclusive_range16(bmp, 0xE7f4, 0xE814)
+        || in_inclusive_range16(bmp, 0xE816, 0xE818)
+        || in_inclusive_range16(bmp, 0xE81e, 0xE81e)
+        || in_inclusive_range16(bmp, 0xE826, 0xE826)
+        || in_inclusive_range16(bmp, 0xE82b, 0xE82c)
+        || in_inclusive_range16(bmp, 0xE831, 0xE832)
+        || in_inclusive_range16(bmp, 0xE83b, 0xE83b)
+        || in_inclusive_range16(bmp, 0xE843, 0xE843)
+        || in_inclusive_range16(bmp, 0xE854, 0xE855)
+        || in_inclusive_range16(bmp, 0xE864, 0xE864)
     {
         return None;
     }

@@ -169,6 +169,9 @@ impl Gb18030Decoder {
                                 handle.written());
                         }
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
+                    } else if in_inclusive_range8(first_minus_offset, 0xF8, 0xFD) || in_inclusive_range8(first_minus_offset, 0xAA, 0xAF) {
+                        // [0xF8, 0xFD], [0xAA,0xAF]
+                        return true;
                     } else if gbk_invalid(first_minus_offset, second) {
                         return (DecoderResult::Malformed(2, 0),
                                 unread_handle_second.consumed(),
@@ -352,10 +355,6 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
         return true;
     } else if first_minus_offset == 0x23 && second.wrapping_sub(0xF4) <= (0xFE - 0xF4) {
         // [0xA4]
-        return true;
-    } else if first_minus_offset.wrapping_sub(0x77) < 6 || first_minus_offset.wrapping_sub(0x29) < 6
-    {
-        // [0xF8, 0xFD], [0xAA,0xAF]
         return true;
     } else if first_minus_offset == 0x24 && second.wrapping_sub(0xF7) <= (0xFE - 0xF7) {
         // [0xA5]

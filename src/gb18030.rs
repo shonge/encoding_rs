@@ -346,49 +346,46 @@ impl Gb18030Decoder {
 
 fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
     if first_minus_offset == 0x21
-        && (second.wrapping_sub(0xAB) <= (0xB0 - 0xAB)
-            || second == 0xE4
-            || second == 0xEF
-            || second == 0xF0
-            || second == 0xFD
-            || second == 0xFE)
+        && (in_inclusive_range8(second, 0xAB, 0xB0)
+            || second == 0xE4 || second == 0xEF || second == 0xF0
+            || second == 0xFD || second == 0xFE)
     {
         // [0xA2]
         return true;
-    } else if first_minus_offset == 0x23 && second.wrapping_sub(0xF4) <= (0xFE - 0xF4) {
+    } else if first_minus_offset == 0x23 && in_inclusive_range8(second, 0xF4, 0xFE) {
         // [0xA4]
         return true;
-    } else if first_minus_offset == 0x24 && second.wrapping_sub(0xF7) <= (0xFE - 0xF7) {
+    } else if first_minus_offset == 0x24 && in_inclusive_range8(second, 0xF7, 0xFE) {
         // [0xA5]
         return true;
     } else if first_minus_offset == 0x25
-        && (second.wrapping_sub(0xB9) <= (0xC0 - 0xB9)
-            || second.wrapping_sub(0xD9) <= (0xDF - 0xD9)
-            || second.wrapping_sub(0xF6) <= (0xFE - 0xF6))
+        && (in_inclusive_range8(0xB9, 0xC0)
+            || in_inclusive_range8(second, 0xD9, 0xDF)
+            || in_inclusive_range8(second, 0xF6, 0xFE))
     {
         // [0xA6]
         return true;
     } else if first_minus_offset == 0x26
-        && (second.wrapping_sub(0xC2) <= (0xD0 - 0xC2)
-            || second.wrapping_sub(0xF2) <= (0xFE - 0xF2))
+        && (in_inclusive_range8(second, 0xC2, 0xD0)
+            || in_inclusive_range8(second, 0xF2, 0xFE))
     {
         // [0xA7]
         return true;
     } else if first_minus_offset == 0x27
         && (second == 0xBC
-            || second.wrapping_sub(0xC1) <= (0xC4 - 0xC1)
-            || second.wrapping_sub(0x96) <= (0xA0 - 0x96)
-            || second.wrapping_sub(0xEA) <= (0xFE - 0xEA)) {
+            || in_inclusive_range8(second, 0xC1, 0xC4)
+            || in_inclusive_range8(second, 0x96, 0xA0)
+            || in_inclusive_range8(second, 0xEA, 0xFE)) {
         // [0xA8]
         return true;
     } else if first_minus_offset == 0x28 && 
-        (second.wrapping_sub(0xF0) <= (0xFE - 0xF0)
-            || second.wrapping_sub(0x5D) <= (0x5F - 0x5D)
-            || second.wrapping_sub(0x97) <= (0xA3 - 0x97)
+        (in_inclusive_range8(second, 0xF0, 0xFE)
+            || in_inclusive_range8(second, 0x5D, 0x5F)
+            || in_inclusive_range8(second, 0x97, 0xA3)
             || second == 0x58 || second == 0x5B) {
         // [0xA9]
         return true;
-    } else if first_minus_offset == 0x56 && second.wrapping_sub(0xFA) <= (0xFE-0xFA) {
+    } else if first_minus_offset == 0x56 && in_inclusive_range8(second, 0xFA, 0xFE) {
         // [0xD7]
         return true;
     } else if first_minus_offset == 0x7D && 
@@ -400,7 +397,8 @@ fn gbk_invalid(first_minus_offset: u8, second: u8) -> bool {
             || in_inclusive_range8(second, 0x59, 0x59)
             || in_inclusive_range8(second, 0x61, 0x61)
             || in_inclusive_range8(second, 0x76, 0x76)
-            || in_inclusive_range8(second, 0x7E, 0x7E)) {
+            || in_inclusive_range8(second, 0x7E, 0x7E)
+            || in_inclusive_range8(second, 0xFF, 0xFF)) {
         // [0xFE]
         return true;
     } else if first_minus_offset == 0x7E && second == 0xFE {

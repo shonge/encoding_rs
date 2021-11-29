@@ -171,7 +171,9 @@ impl Gb18030Decoder {
                         handle.write_bmp_excl_ascii(GB2312_PINYIN[trail_minus_offset as usize])
                     } else if in_inclusive_range8(first_minus_offset, 0xF8, 0xFD) || in_inclusive_range8(first_minus_offset, 0xAA, 0xAF) {
                         // [0xF8, 0xFD], [0xAA,0xAF]
-                        return true;
+                        return (DecoderResult::Malformed(2, 0),
+                                unread_handle_second.consumed(),
+                                handle.written());
                     } else if gbk_invalid(first_minus_offset, second) {
                         return (DecoderResult::Malformed(2, 0),
                                 unread_handle_second.consumed(),

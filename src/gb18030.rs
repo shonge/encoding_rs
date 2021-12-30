@@ -116,10 +116,11 @@ impl Gb18030Decoder {
             let non_ascii_minus_offset = non_ascii.wrapping_sub(0x81);
             if non_ascii_minus_offset > (0xFE - 0x81) {
                 if non_ascii == 0x80 {
-                    handle.write_upper_bmp(0x20ACu16);
-                    continue 'outermost;
+                    return (DecoderResult::Malformed(2, 0),
+                                source.consumed(),
+                                handle.written());
                 }
-                return (DecoderResult::Malformed(1, 0),
+                return (DecoderResult::Malformed(2, 0),
                         source.consumed(),
                         handle.written());
             }
@@ -416,6 +417,7 @@ fn gbk_encode_non_unified(bmp: u16) -> Option<(usize, usize)> {
         || in_inclusive_range16(bmp, 0xE843, 0xE843)
         || in_inclusive_range16(bmp, 0xE854, 0xE855)
         || in_inclusive_range16(bmp, 0xE864, 0xE864)
+        || in_inclusive_range16(bmp, 0x20AC, 0x20AC)
     {
         return None;
     }
